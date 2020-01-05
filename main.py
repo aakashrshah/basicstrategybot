@@ -226,19 +226,6 @@ def confirm_data(update, context):
     return STRATEGY
 
 
-def strategy(update, context):
-    """Show new choice of buttons"""
-    query = update.callback_query
-    if query.message.reply_to_message:
-        user = query.message.reply_to_message.from_user
-    else:
-        user = query.message.chat
-    bot = context.bot
-    CURRENT_CONTEXT = USERS[user.username]
-    if query.data in ['HIT']:
-        return ADD_CARD
-
-
 def add_card(update, context):
     """Show new choice of buttons"""
     query = update.callback_query
@@ -377,7 +364,7 @@ def main():
                        CallbackQueryHandler(
                            start_over, pattern='^(Something Else|New Round)$'),
                        CallbackQueryHandler(
-                           add_card, pattern='^(HIT)$')],
+                           add_card, pattern='^(HIT|DOUBLE DOWN)$')],
 
             ADD_CARD: [CallbackQueryHandler(confirm_new_card, pattern='^([1-9]|Ace)$')],
         },
