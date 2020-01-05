@@ -32,8 +32,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Stages
-DEALER, PLAYER_CARD_ONE, PLAYER_CARD_TWO, STRATEGY, ADD_CARD, DEALER_CARD, START = range(
-    7)
+DEALER, PLAYER_CARD_ONE, PLAYER_CARD_TWO, STRATEGY, ADD_CARD, \
+    DEALER_CARD, START, ADD_CARD = range(8)
 
 # PLAYER CONTROLLER
 USERS = {}
@@ -80,7 +80,7 @@ def calculate_basic_strategy(CURRENT_CONTEXT):
     return STRATEGY_LEGEND[dealer_moves]
 
 
-def process_card_value(card, CURRENT_CONTEXT, isDealer=False):
+def process_card_value(card, CURRENT_CONTEXT, isDealer=False, calculateStrategy=False):
     value = 0
 
     if card == 'Ace':
@@ -91,13 +91,14 @@ def process_card_value(card, CURRENT_CONTEXT, isDealer=False):
 
     if isDealer:
         CURRENT_CONTEXT["dealer_card"] = card
-        CURRENT_CONTEXT["player_cards"] = sorted(
-            CURRENT_CONTEXT["player_cards"], key=lambda x: (x[0].isdigit(), x))
-        CURRENT_CONTEXT["strategy"] = calculate_basic_strategy(CURRENT_CONTEXT)
     else:
         CURRENT_CONTEXT["player_total"] += int(value)
         CURRENT_CONTEXT["player_cards"].append(card)
 
+    if calculateStrategy:
+        CURRENT_CONTEXT["player_cards"] = sorted(
+            CURRENT_CONTEXT["player_cards"], key=lambda x: (x[0].isdigit(), x))
+        CURRENT_CONTEXT["strategy"] = calculate_basic_strategy(CURRENT_CONTEXT)
     return CURRENT_CONTEXT
 
 
@@ -134,7 +135,10 @@ def start(update, context):
 def player_card_one_choice(update, context):
     """Show new choice of buttons"""
     query = update.callback_query
-    user = query.message.reply_to_message.from_user
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
     bot = context.bot
     CURRENT_CONTEXT = USERS[user.username]
     message = f'Round: {CURRENT_CONTEXT["round"]} ({CURRENT_CONTEXT["username"]}) \nDealers Card: {CURRENT_CONTEXT["dealer_card"]}\nYour Cards: {CURRENT_CONTEXT["player_cards"]} \nYour total: {CURRENT_CONTEXT["player_total"]} \n\nChoose Your 1st Card: '
@@ -151,7 +155,10 @@ def player_card_one_choice(update, context):
 def player_card_two_choice(update, context):
     """Show new choice of buttons"""
     query = update.callback_query
-    user = query.message.reply_to_message.from_user
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
     bot = context.bot
     CURRENT_USER = USERS[user.username]
     CURRENT_CONTEXT = process_card_value(query.data, CURRENT_USER)
@@ -169,7 +176,10 @@ def player_card_two_choice(update, context):
 def dealer_card_choice(update, context):
     """Show new choice of buttons"""
     query = update.callback_query
-    user = query.message.reply_to_message.from_user
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
     bot = context.bot
     CURRENT_USER = USERS[user.username]
     CURRENT_CONTEXT = process_card_value(query.data, CURRENT_USER)
@@ -188,10 +198,78 @@ def dealer_card_choice(update, context):
 def confirm_data(update, context):
     """Show new choice of buttons"""
     query = update.callback_query
-    user = query.message.reply_to_message.from_user
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
     bot = context.bot
     CURRENT_USER = USERS[user.username]
-    CURRENT_CONTEXT = process_card_value(query.data, CURRENT_USER, True)
+    CURRENT_CONTEXT = process_card_value(query.data, CURRENT_USER, True, True)
+    message = f'Round: {CURRENT_CONTEXT["round"]} ({CURRENT_CONTEXT["username"]}) \nDealers Card: {CURRENT_CONTEXT["dealer_card"]}\nYour Cards: {CURRENT_CONTEXT["player_cards"]} \nYour total: {CURRENT_CONTEXT["player_total"]} \n\n'
+    message = message + f'You should: *{CURRENT_CONTEXT["strategy"]}* \n\n'
+    message = message + f'Choose the action you took: '
+    keyboard = [
+        [inline(CURRENT_USER["strategy"])],
+        [inline('Something Else')],
+        [inline('New Round')]
+    ]
+
+    strategy_markup = InlineKeyboardMarkup(keyboard)
+    bot.edit_message_text(
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+        text=message,
+        reply_markup=strategy_markup
+    )
+
+    # Tell ConversationHandler that we're in state `STRATEGY` now
+    return STRATEGY
+
+
+def strategy(update, context):
+    """Show new choice of buttons"""
+    query = update.callback_query
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
+    bot = context.bot
+    CURRENT_CONTEXT = USERS[user.username]
+    if query.data in ['HIT']:
+        return ADD_CARD
+
+
+def add_card(update, context):
+    """Show new choice of buttons"""
+    query = update.callback_query
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
+    bot = context.bot
+    CURRENT_CONTEXT = USERS[user.username]
+    message = f'Round: {CURRENT_CONTEXT["round"]} ({CURRENT_CONTEXT["username"]}) \nDealers Card: {CURRENT_CONTEXT["dealer_card"]}\nYour Cards: {CURRENT_CONTEXT["player_cards"]} \nYour total: {CURRENT_CONTEXT["player_total"]} \n\n You {query.data}! New card?'
+    bot.edit_message_text(
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id,
+        text=message,
+        reply_markup=card_markup
+    )
+
+    return ADD_CARD
+
+
+def confirm_new_card(update, context):
+    """Show new choice of buttons"""
+    query = update.callback_query
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
+    bot = context.bot
+    CURRENT_USER = USERS[user.username]
+    CURRENT_CONTEXT = process_card_value(query.data, CURRENT_USER, False, True)
+    print("COnfirm New data")
     message = f'Round: {CURRENT_CONTEXT["round"]} ({CURRENT_CONTEXT["username"]}) \nDealers Card: {CURRENT_CONTEXT["dealer_card"]}\nYour Cards: {CURRENT_CONTEXT["player_cards"]} \nYour total: {CURRENT_CONTEXT["player_total"]} \n\n'
     message = message + f'You should: *{CURRENT_CONTEXT["strategy"]}* \n\n'
     message = message + f'Choose the action you took: '
@@ -218,7 +296,10 @@ def start_over(update, context):
     # Get user that sent /start and log his name
     global USERS
     query = update.callback_query
-    user = query.message.reply_to_message.from_user
+    if query.message.reply_to_message:
+        user = query.message.reply_to_message.from_user
+    else:
+        user = query.message.chat
     bot = context.bot
     CURRENT_CONTEXT = USERS[user.username]
     round_up = CURRENT_CONTEXT['round'] + 1
@@ -293,7 +374,12 @@ def main():
             PLAYER_CARD_TWO: [CallbackQueryHandler(player_card_two_choice)],
 
             STRATEGY: [CallbackQueryHandler(confirm_data, pattern='^([1-9]|Ace)$'),
-                       CallbackQueryHandler(start_over, pattern='^(Something Else|New Round)$')],
+                       CallbackQueryHandler(
+                           start_over, pattern='^(Something Else|New Round)$'),
+                       CallbackQueryHandler(
+                           add_card, pattern='^(HIT)$')],
+
+            ADD_CARD: [CallbackQueryHandler(confirm_new_card, pattern='^([1-9]|Ace)$')],
         },
         fallbacks=[CommandHandler('start', start)]
     )
