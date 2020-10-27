@@ -1,6 +1,6 @@
 certifi==2019.11.28
 cffi==1.13.2
-cryptography==2.8
+cryptography==3.2
 future==0.18.2
 numpy==1.18.0
 pandas==0.25.3
